@@ -1,0 +1,99 @@
+/* ================================
+   BOTONES DEL MENÚ PRINCIPAL
+================================ */
+
+nav ul {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    padding: 10px 0;
+}
+
+nav ul li {
+    list-style: none;
+}
+
+/* Botón estilo TurnoExpress */
+a.btn-menu {
+    background-color: #e9a625;          /* Amarillo original */
+    border: 2px solid #000;             /* Marco negro */
+    padding: 8px 15px;
+    border-radius: 6px;
+    color: #000;
+    font-weight: 600;
+    text-decoration: none;
+    transition: 0.2s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;                            /* Espacio si usa icono */
+}
+
+/* Hover */
+a.btn-menu:hover {
+    background-color: #f3bd42;         /* Amarillo más claro */
+    transform: translateY(-2px);
+}
+
+/* Ícono dentro de un botón (si se usa) */
+a.btn-menu img.icono-boton {
+    width: 24px;
+    height: 24px;
+}
+
+
+/* ================================
+   ACCESOS RÁPIDOS (SECRETARIA)
+================================ */
+
+.accesos-titulo {
+    text-align: center;
+    margin: 20px 0;
+    font-size: 22px;
+    color: #000;
+}
+
+.botones-rapidos {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+button.btn-rapido {
+    background-color: #e9a625;
+    border: 2px solid #000;
+    padding: 12px 20px;
+    border-radius: 6px;
+    color: #000;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease-in-out;
+}
+
+button.btn-rapido:hover {
+    background-color: #f3bd42;
+    transform: translateY(-2px);
+}
+
+
+/* ================================
+   RESPONSIVO
+================================ */
+
+@media (max-width: 768px) {
+    
+    nav ul {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .botones-rapidos {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    button.btn-rapido {
+        width: 90%;
+        text-align: center;
+    }
+}

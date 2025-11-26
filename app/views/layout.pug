@@ -1,0 +1,79 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1.0")
+    title TurnoExpress
+    link(rel="stylesheet" href="/css/style.css")
+    link(rel="stylesheet" href="/css/inicio.css")
+    link(rel="icon" href="/favicon.ico" type="image/x-icon")
+
+  body
+    header
+      h1 TurnoExpress
+      nav
+        ul
+          if !user
+            //- Si NO hay usuario logueado, mostrar botones de login
+            li
+              a(href="/login/paciente")
+                img.icono-boton(src="/images/soypacienteBTN.png" alt="Paciente Logo")
+            li
+              a(href="/login/medico")
+                img.icono-boton(src="/images/soyDoctorBTN.png" alt="Médico Logo")
+            li
+              a(href="/login/secretaria")
+                img.icono-boton(src="/images/soyAdminBTN.png" alt="Administrador Logo")
+
+          else
+            //- Si HAY usuario, verificamos primero si está Pendiente
+            if user.role === 'paciente' && user.estado === 'Pendiente'
+                //- Si es paciente pendiente, mostramos SOLO volver al login (que actúa como logout)
+                li
+                   a.btn-menu(href="/logout") Volver al Login
+            
+            else
+                //- Si el usuario está ACTIVO (o es medico/secretaria), mostramos el menú normal
+                if user.role === 'secretaria'
+                  li
+                    a.btn-menu(href="/secretaria/pacientes") Pacientes
+                  li
+                    a.btn-menu(href="/secretaria/citas") Citas
+                  li
+                    a.btn-menu(href="/secretaria/ver-medicos") Médicos
+
+                if user.role === 'Medico'
+                  li
+                    a.btn-menu(href="/medicos/agenda") Ver Agenda
+                  li
+                    a.btn-menu(href="/historias") Historial Clínico
+
+                if user.role === 'paciente'
+                  li
+                    a.btn-menu(href="/paciente/mi-perfil") Mi Perfil
+
+                li
+                  a.btn-menu(href="/logout") Cerrar Sesión
+
+    //- Ocultar los accesos rápidos también si el usuario está pendiente (aunque aquí validas rol secretaria, está bien)
+    if user && user.role === 'secretaria'
+      section.accesos-rapidos
+        h2.accesos-titulo Accesos rápidos
+        div.botones-rapidos
+          button.btn-rapido(onclick="window.location.href='/secretaria/pacientes/new'") Agregar Paciente
+          button.btn-rapido(onclick="window.location.href='/secretaria/citas/new'") Nueva Cita
+
+    main
+      block content
+
+    footer
+      p Derechos reservados © Fernandez Jorge #{new Date().getFullYear()}
+
+    script.
+      console.log('Usuario:', !{JSON.stringify(user)});
+      window.user = !{JSON.stringify(user)};
+
+    script(src="/js/secretaria.js")
+    script(src="/botondinamicoAgendaEnCita.js")
+    script(src="/js/searchPaciente.js")
+    script(src="/js/selectClinic.js")

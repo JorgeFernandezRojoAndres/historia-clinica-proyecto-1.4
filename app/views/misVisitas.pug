@@ -1,0 +1,22 @@
+extends layout
+
+block content
+  h1 Mis Visitas
+
+  if visitas.length
+    table
+      thead
+        tr
+          th Fecha
+          th Médico
+          th Motivo
+          th Notas
+      tbody
+        each v in visitas
+          tr
+            td= new Date(v.fechaVisita).toLocaleString('es-AR')
+            td= v.nombreMedico
+            td= v.motivo || '-'
+            td= v.notas || '-'
+  else
+    p No tenés visitas registradas todavía.

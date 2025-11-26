@@ -1,0 +1,38 @@
+extends layout
+
+block content
+  .container.mt-5
+    h1.text-center.mb-4 Historial de Visitas
+
+    if historial.length > 0
+      .table-responsive
+        table.table.table-striped.table-hover
+          thead.table-dark
+            tr
+              th Médico
+              th Fecha
+              th Hora
+              th Motivo
+              th Estado
+          tbody
+            each cita in historial
+              tr
+                // Médico
+                td #{cita.nombreMedico || 'No registrado'}
+
+                // Fechas separadas
+                - const partes = cita.fechaHora.split(' ')
+                - const fechaVisita = partes[0]
+                - const horaVisita = partes[1]
+
+                td #{fechaVisita}
+                td #{horaVisita}
+
+                // Motivo & estado
+                td #{cita.motivoConsulta}
+                td 
+                  span.badge.bg-primary #{cita.estado}
+    else
+      .alert.alert-info.text-center No hay visitas registradas para este paciente.
+
+    a.btn.btn-secondary.mt-3(href="/paciente/mi-perfil") ← Volver al Perfil

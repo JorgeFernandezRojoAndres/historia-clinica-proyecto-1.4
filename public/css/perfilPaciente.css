@@ -1,0 +1,56 @@
+/* ================================
+   ESTILOS PARA PERFIL DEL PACIENTE
+   Respetando colores originales
+================================ */
+
+/* Contenedor del menú */
+nav {
+    margin-top: 15px;
+}
+
+/* Estilo base de los botones */
+nav a.btn {
+    background-color: #e9a625; /* tu amarillo */
+    color: #000;
+    padding: 8px 15px;
+    border-radius: 6px;
+    border: 2px solid #000; /* bordes negros como todo tu sistema */
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: 0.2s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Hover */
+nav a.btn:hover {
+    background-color: #f1b642; /* mismo color pero más claro */
+    transform: translateY(-2px);
+}
+
+/* Íconos */
+nav a.btn i {
+    font-size: 16px;
+}
+
+/* Separación entre los botones */
+nav a.btn + a.btn {
+    margin-left: 10px;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+    nav {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    nav a.btn {
+        margin-bottom: 10px;
+        width: 90%;
+        justify-content: center;
+    }
+}

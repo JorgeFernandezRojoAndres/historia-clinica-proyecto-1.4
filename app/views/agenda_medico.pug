@@ -1,0 +1,68 @@
+doctype html  
+html
+  head
+    title Agenda del Médico
+    link(rel="stylesheet" href="/css/style.css")
+  body
+    h1 Agenda del Médico
+
+    if !agendaDelDia
+      div#fechaSelector
+        label(for="fecha") Seleccionar Fecha:
+        input(type="date" id="fecha" name="fecha" value=fechaHoy data-medico-id=medicoId onchange="cambiarFecha()")
+
+    if user.role === 'medico' || user.role === 'secretaria'
+      h2 Turnos Regulares
+      div#citasContainer
+        if regulares && regulares.length > 0
+          table
+            thead
+              tr
+                th Fecha y Hora
+                th Paciente
+                th Motivo de Consulta
+            tbody
+              each cita in regulares
+                tr
+                  td= cita.fechaHora
+                  td= cita.nombrePaciente || 'Paciente no disponible'
+                  td= cita.motivoConsulta || 'Motivo no disponible'
+        else
+          p No hay turnos regulares disponibles para este médico.
+
+    if user.role === 'medico' || user.role === 'secretaria'
+      h2 Sobreturnos
+      div#sobreturnosContainer
+        if sobreturnos && sobreturnos.length > 0
+          table
+            thead
+              tr
+                th Fecha y Hora
+                th Paciente
+                th Motivo de Consulta
+            tbody
+              each cita in sobreturnos
+                tr
+                  td= cita.fechaHora
+                  td= cita.nombrePaciente || 'Paciente no disponible'
+                  td= cita.motivoConsulta || 'Motivo no disponible'
+        else
+          p No hay sobreturnos disponibles para este médico.
+
+    if horariosLibres && horariosLibres.length > 0 && (user.role === 'paciente' || user.role === 'secretaria')
+      h2 Horarios Disponibles
+      table
+        thead
+          tr
+            th Horario Disponible
+            th Seleccionar
+        tbody
+          each horario in horariosLibres
+            tr
+              td= `${horario.fecha} ${horario.hora}`
+              td
+                button.btn-seleccionar(onclick=`seleccionarHorario('${horario.fecha}', '${horario.hora}')`) Seleccionar
+    else if user.role === 'paciente' || user.role === 'secretaria'
+      p No hay horarios disponibles.
+
+    script(src="/js/agendaMedico.js")
