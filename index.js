@@ -18,6 +18,7 @@ const citasController = require('./app/controllers/citasController');
 const authController = require('./app/controllers/authController');
 const { isAuthenticated, isPacienteOrMedico } = require('./middleware/roleMiddleware');
 const notificaciones = require('./utils/notificaciones');
+const horariosRoutes = require('./routes/horarios');
 
 
 
@@ -40,7 +41,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(compression());
 app.use(methodOverride('_method'));
-
+app.use('/citas', horariosRoutes);
 // Configuración de sesiones
 app.use(session({
     secret: 'tu_secreto', // Cambia esto a una clave más segura en producción

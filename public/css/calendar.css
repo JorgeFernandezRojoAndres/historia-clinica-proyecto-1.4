@@ -1,0 +1,62 @@
+/* ===============================
+   CALENDARIO PERSONALIZADO
+   =============================== */
+
+/* Contenedor general */
+#calendar {
+  max-width: 900px;
+  margin: 40px auto;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* Bordes de los días */
+.fc-daygrid-day {
+  border: 1px solid #e5e5e5;
+}
+
+/* Encabezado del calendario */
+.fc-toolbar {
+  background: #343a40;
+  color: #fff;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.fc-toolbar-title {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+/* Botones */
+.fc-button {
+  background: #e7b859 !important;
+  border: none !important;
+  color: #000 !important;
+  font-weight: bold;
+}
+
+.fc-button:hover {
+  background: #ddb246 !important;
+}
+
+/* Día no laborable o feriado */
+.fc-day-disabled {
+  background: #d5d5d5 !important;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* El punto de cada evento */
+.fc-event-dot {
+  width: 10px;
+  height: 10px;
+  display: inline-block;
+  border-radius: 50%;
+  margin-top: 3px;
+  margin-left: auto;
+  margin-right: auto;
+}

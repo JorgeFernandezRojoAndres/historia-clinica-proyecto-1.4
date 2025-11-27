@@ -1,5 +1,119 @@
 const db = require('../../config/database');
 const { enviarNotificacionAScretaria } = require('../../utils/notificaciones');
+const moment = require('moment');
+
+function generarHorariosLibres(inicio, fin, diasLaborales, feriados, ocupadasISO) {
+    const libres = [];
+
+    for (let d = new Date(inicio); d <= fin; d.setHours(d.getHours() + 1)) {
+        const dia = d.getUTCDay();
+        const fechaISO = d.toISOString().slice(0, 10);
+
+        if (!diasLaborales.includes(dia)) continue;
+        if (feriados.includes(fechaISO)) continue;
+
+        const hora = d.toISOString().slice(0, 16);
+        if (ocupadasISO.has(hora)) continue;
+
+        libres.push({
+            id: `disp-${hora}`,
+            title: "Disponible",
+            start: d.toISOString(),
+            backgroundColor: "#28a745",
+            borderColor: "#28a745",
+            textColor: "white",
+            extendedProps: { estado: "Disponible" }
+        });
+    }
+
+    return libres;
+}
+exports.validarFechaDisponible = (req, res) => {
+    const { idMedico, fecha } = req.query; // fecha = YYYY-MM-DD
+
+    if (!idMedico || !fecha) {
+        return res.status(400).json({
+            disponible: false,
+            motivo: "Faltan parámetros"
+        });
+    }
+
+    const hoy = new Date().toISOString().slice(0, 10);
+    if (fecha < hoy) {
+        return res.json({
+            disponible: false,
+            motivo: "No podés elegir una fecha pasada"
+        });
+    }
+
+    // Día de la semana (0 Domingo → 6 Sábado)
+    const nombresDias = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+    const diaSemanaNombre = nombresDias[new Date(fecha).getDay()];
+
+    // 1) Chequear días no laborables / feriados
+    const qFeriado = `SELECT id FROM dias_no_laborables WHERE fecha = ?`;
+
+    db.query(qFeriado, [fecha], (errF, feriado) => {
+        if (errF) {
+            console.error("Error feriados:", errF);
+            return res.status(500).json({ disponible: false, motivo: "Error interno" });
+        }
+
+        if (feriado.length > 0) {
+            return res.json({
+                disponible: false,
+                motivo: "La fecha seleccionada es un día no laborable"
+            });
+        }
+
+        // 2) Chequear vacaciones del médico
+        const qVac = `
+            SELECT idVacacion 
+            FROM vacaciones 
+            WHERE idMedico = ?
+            AND ? BETWEEN fechaInicio AND fechaFin
+        `;
+
+        db.query(qVac, [idMedico, fecha], (errV, vac) => {
+            if (errV) {
+                console.error("Error vacaciones:", errV);
+                return res.status(500).json({ disponible: false, motivo: "Error interno" });
+            }
+
+            if (vac.length > 0) {
+                return res.json({
+                    disponible: false,
+                    motivo: "El médico está de vacaciones en esa fecha"
+                });
+            }
+
+            // 3) Chequear si el médico trabaja ese día
+            const qHorario = `
+                SELECT idHorarioEstandar 
+                FROM horarios_estandar_medico
+                WHERE idMedico = ?
+                AND diaSemana = ?
+            `;
+
+            db.query(qHorario, [idMedico, diaSemanaNombre], (errH, horario) => {
+                if (errH) {
+                    console.error("Error horario:", errH);
+                    return res.status(500).json({ disponible: false, motivo: "Error interno" });
+                }
+
+                if (horario.length === 0) {
+                    return res.json({
+                        disponible: false,
+                        motivo: "El médico no atiende ese día"
+                    });
+                }
+
+                // ✔ Fecha válida
+                return res.json({ disponible: true });
+            });
+        });
+    });
+};
 
 
 exports.listAll = (req, res) => {
@@ -53,11 +167,11 @@ exports.listAll = (req, res) => {
             const total = countResults[0].total;
             const totalPages = Math.ceil(total / limit);
 
-            res.render('citas', { 
-                citas: results, 
-                total, 
-                totalPages, 
-                currentPage: parseInt(page) 
+            res.render('citas', {
+                citas: results,
+                total,
+                totalPages,
+                currentPage: parseInt(page)
             });
         });
     });
@@ -165,7 +279,7 @@ exports.marcarCitasCompletadas = () => {
         SET estado = 'Completado'
         WHERE fechaHora < NOW() AND estado != 'Completado'
     `;
-    
+
     db.query(sql, (error) => {
         if (error) {
             console.error('Error al marcar citas como completadas:', error);
@@ -330,49 +444,114 @@ exports.showEditForm = (req, res) => {
     });
 };
 
-// Obtener citas en formato JSON 
 exports.obtenerCitasJSON = (req, res) => {
     const medicoId = req.params.id;
-    const { fechaInicio, fechaFin, estado } = req.query; // Parámetros opcionales
 
-    console.log('ID del médico:', medicoId);
+    if (!medicoId) {
+        console.error("❌ Falta idMedico");
+        return res.status(400).json({ error: "idMedico es obligatorio" });
+    }
 
-    let sql = `
-        SELECT fechaHora, motivoConsulta, estado
-        FROM citas
-        WHERE idMedico = ?
+    const { start, end } = req.query;
+
+    let diasLaborales = [1, 2, 3, 4, 5];
+    let feriados = [];
+
+    try {
+        if (req.query.diasLaboralesJSON) {
+            diasLaborales = JSON.parse(req.query.diasLaboralesJSON);
+        }
+        if (req.query.feriadosJSON) {
+            feriados = JSON.parse(req.query.feriadosJSON);
+        }
+    } catch (err) {
+        console.error("Error parseando días laborales/feriados", err);
+    }
+
+    const sql = `
+        SELECT 
+            c.idCita,
+            c.fechaHora,
+            c.motivoConsulta,
+            c.estado,
+            c.tipoTurno,
+            p.nombre AS nombrePaciente
+        FROM citas c
+        JOIN pacientes p ON c.idPaciente = p.idPaciente
+        WHERE c.idMedico = ?
+        AND c.fechaHora BETWEEN ?
+        AND ?
+        ORDER BY c.fechaHora ASC
     `;
-    const params = [medicoId];
 
-    // Filtrar por rango de fechas
-    if (fechaInicio && fechaFin) {
-        sql += ' AND fechaHora BETWEEN ? AND ?';
-        params.push(fechaInicio, fechaFin);
-    }
-
-    // Filtrar por estado
-    if (estado) {
-        sql += ' AND estado = ?';
-        params.push(estado);
-    }
-
-    db.query(sql, params, (error, results) => {
+    db.query(sql, [medicoId, start, end], (error, results) => {
         if (error) {
-            console.error('Error al obtener las citas:', error);
-            return res.status(500).send('Error al obtener las citas');
+            console.error("❌ Error SQL citas-json:", error);
+            return res.status(500).json({ error: "Error al obtener las citas" });
         }
 
-        const citasFormateadas = results.map(cita => ({
-            fecha: new Date(cita.fechaHora).toLocaleString(), // Formato legible
-            motivo: cita.motivoConsulta || 'No especificado',
-            estado: cita.estado,
-        }));
+        // ------------------------------
+        // 🔴 1) CITAS OCUPADAS (ROJO)
+        // ------------------------------
+        const ocupados = results.map(cita => {
+            const f = moment(cita.fechaHora);
 
-        console.log('Citas formateadas:', citasFormateadas);
-        res.json(citasFormateadas);
+            return {
+                id: cita.idCita,
+                title: `${cita.nombrePaciente} - ${cita.motivoConsulta}`,
+                start: f.toISOString(),
+                backgroundColor: "#dc3545",
+                borderColor: "#dc3545",
+                textColor: "white",
+                extendedProps: {
+                    estado: cita.estado,
+                    tipoTurno: cita.tipoTurno,
+                    paciente: cita.nombrePaciente,
+                    motivo: cita.motivoConsulta
+                }
+            };
+        });
+
+        // -------------------------------------
+        // 🟢 2) HORARIOS LIBRES REALES (VERDE)
+        // -------------------------------------
+        const libresPorDia = {};
+
+        for (let d = moment(start); d.isSameOrBefore(end); d.add(1, "day")) {
+            const fechaISO = d.format("YYYY-MM-DD");
+            const delDia = results.filter(c => moment(c.fechaHora).format("YYYY-MM-DD") === fechaISO);
+
+            const generados = generarHorariosLibres(
+                fechaISO,
+                delDia,
+                { diasLaborales, feriados }
+            );
+
+            libresPorDia[fechaISO] = generados;
+        }
+
+        const libres = [];
+
+        Object.entries(libresPorDia).forEach(([fecha, horas]) => {
+            horas.forEach(h => {
+                libres.push({
+                    id: `disp-${h.startISO}`,
+                    title: "Disponible",
+                    start: h.startISO,
+                    backgroundColor: "#28a745",
+                    borderColor: "#28a745",
+                    textColor: "white",
+                    extendedProps: { estado: "Disponible" }
+                });
+            });
+        });
+
+        // ---------------------------
+        // 📤 RESPUESTA FINAL
+        // ---------------------------
+        return res.json([...ocupados, ...libres]);
     });
 };
-
 
 // Editar una cita
 exports.update = (req, res) => {
@@ -423,6 +602,37 @@ exports.actualizarEstadoCita = (req, res) => {
     });
 };
 
+exports.obtenerHorariosLibres = (req, res) => {
+    const idMedico = req.params.id;
+    const fecha = req.query.fecha; // YYYY-MM-DD
+
+    if (!idMedico || !fecha) {
+        return res.status(400).json({ error: "idMedico y fecha son obligatorios" });
+    }
+
+    const sql = `
+        SELECT fechaHora 
+        FROM horarios_libres
+        WHERE idMedico = ? 
+        AND DATE(fechaHora) = ?
+        AND disponible = 1
+        ORDER BY fechaHora ASC
+    `;
+
+    db.query(sql, [idMedico, fecha], (err, results) => {
+        if (err) {
+            console.error("Error al obtener horarios libres:", err);
+            return res.status(500).json({ error: "Error al obtener horarios libres" });
+        }
+
+        // 👇 El frontend espera objetos con { start: "..." }
+        const horarios = results.map(r => ({
+            start: r.fechaHora
+        }));
+
+        return res.json(horarios);
+    });
+};
 
 
 
@@ -557,5 +767,5 @@ exports.delete = (req, res) => {
     });
 };
 
-  
+
 

@@ -128,6 +128,16 @@ exports.create = (req, res) => {
 };
 
 exports.obtenerCitasDesdeMedico = (req, res) => {
+    req.query.idMedico = req.params.id;
+
+    // Pasar días laborales y feriados si vienen desde la vista
+    if (req.query.diasLaboralesJSON) {
+        req.query.diasLaborales = req.query.diasLaboralesJSON;
+    }
+    if (req.query.feriadosJSON) {
+        req.query.feriados = req.query.feriadosJSON;
+    }
+
     citasController.obtenerCitasJSON(req, res);
 };
 
@@ -176,32 +186,24 @@ exports.delete = (req, res) => {
     });
 };
 
-// Ver la agenda del médico con citas actuales
 exports.verAgenda = (req, res) => {
     const idMedico = req.session.user?.role === 'medico'
-        ? req.session.user.id        // Si es médico logueado → usa su id de sesión
+        ? req.session.user.id
         : req.params.id;
-    const fechaSeleccionada = req.query.fecha || new Date().toISOString().split('T')[0]; // Fecha seleccionada o actual
-    const usuario = req.session.user; // Obtener el usuario autenticado desde la sesión
-    const idClinica = req.session.idClinica; // Obtener la clínica seleccionada de la sesión
 
-    // Logs iniciales para depuración
-    console.log(`Verificando agenda del médico: ID Médico: ${idMedico}`);
-    console.log(`Clínica seleccionada: ID Clínica: ${idClinica}`);
-    console.log(`Usuario autenticado:`, usuario);
-    console.log(`Fecha seleccionada: ${fechaSeleccionada}`);
+    const fechaSeleccionada = req.query.fecha || new Date().toISOString().split('T')[0];
+    const usuario = req.session.user;
+    const idClinica = req.session.idClinica;
 
-    // Validar que todos los datos necesarios están disponibles
     if (!idMedico) {
         console.error('Falta el ID del médico.');
         return res.status(400).send('El ID del médico es obligatorio.');
     }
     if (!idClinica) {
         console.error('No se ha seleccionado una clínica.');
-        return res.redirect('/select-clinica'); // Redirigir para seleccionar clínica
+        return res.redirect('/select-clinica');
     }
 
-    // Consulta para verificar que el médico está asociado a la clínica seleccionada
     const sqlVerificarClinica = `
         SELECT 1 
         FROM medicos_clinicas
@@ -215,13 +217,82 @@ exports.verAgenda = (req, res) => {
         }
 
         if (resultados.length === 0) {
-            console.warn(`El médico con ID ${idMedico} no está asociado a la clínica con ID ${idClinica}.`);
             return res.status(403).send('No tiene permiso para acceder a esta clínica.');
         }
 
-        // Si la verificación es exitosa, continuar con la lógica de turnos regulares
-        console.log(`El médico con ID ${idMedico} está asociado a la clínica con ID ${idClinica}.`);
-        obtenerTurnosRegulares(idMedico, fechaSeleccionada, usuario, res);
+        const sqlRegulares = `
+            SELECT citas.idCita, pacientes.nombre AS nombrePaciente, citas.fechaHora, citas.motivoConsulta, citas.estado 
+            FROM citas
+            JOIN pacientes ON citas.idPaciente = pacientes.idPaciente
+            WHERE citas.idMedico = ? AND DATE(citas.fechaHora) = ? AND citas.tipoTurno = 'regular'
+        `;
+
+        db.query(sqlRegulares, [idMedico, fechaSeleccionada], (errorRegulares, regulares) => {
+            if (errorRegulares) {
+                console.error('Error al obtener los turnos regulares:', errorRegulares);
+                return res.status(500).send('Error al obtener los turnos regulares');
+            }
+
+            const sqlSobreturnos = `
+                SELECT citas.idCita, pacientes.nombre AS nombrePaciente, citas.fechaHora, citas.motivoConsulta, citas.estado 
+                FROM citas
+                JOIN pacientes ON citas.idPaciente = pacientes.idPaciente
+                WHERE citas.idMedico = ? AND DATE(citas.fechaHora) = ? AND citas.tipoTurno = 'sobreturno'
+            `;
+
+            db.query(sqlSobreturnos, [idMedico, fechaSeleccionada], (errorSobreturnos, sobreturnos) => {
+                if (errorSobreturnos) {
+                    console.error('Error al obtener los sobreturnos:', errorSobreturnos);
+                    return res.status(500).send('Error al obtener los sobreturnos');
+                }
+
+                formatearCitas(regulares);
+                formatearCitas(sobreturnos);
+
+                let horariosLibres = [];
+                if (usuario.role === 'secretaria' || usuario.role === 'paciente') {
+                    horariosLibres = generarHorariosLibres(fechaSeleccionada, regulares.concat(sobreturnos));
+                }
+
+                // 💥 NUEVO: días laborales + feriados
+                const diasLaboralesJSON = JSON.stringify([1, 2, 3, 4, 5]);
+                const feriadosJSON = JSON.stringify([]);
+
+                res.render('agenda_medico', {
+                    regulares,
+                    sobreturnos,
+                    horariosLibres,
+                    fechaHoy: fechaSeleccionada,
+                    medicoId: idMedico,
+                    user: usuario,
+                    agendaDelDia: false,
+                    diasLaboralesJSON,
+                    feriadosJSON
+                });
+            });
+        });
+    });
+};
+
+
+
+exports.obtenerHorariosLibres = (req, res) => {
+    const idMedico = req.params.id;
+
+    const sql = `
+        SELECT idHorario, idMedico, fechaHora, disponible
+        FROM horarios_libres
+        WHERE idMedico = ? AND disponible = 1
+        ORDER BY fechaHora ASC
+    `;
+
+    db.query(sql, [idMedico], (err, results) => {
+        if (err) {
+            console.error("Error obteniendo horarios libres:", err);
+            return res.status(500).json({ error: "Error en servidor" });
+        }
+
+        res.json(results);
     });
 };
 
@@ -246,7 +317,6 @@ const obtenerTurnosRegulares = (idMedico, fechaSeleccionada, usuario, res) => {
     });
 };
 const obtenerSobreturnos = (idMedico, fechaSeleccionada, regulares, usuario, res) => {
-    // Consulta para obtener los sobreturnos
     const sqlSobreturnos = `
         SELECT citas.idCita, pacientes.nombre AS nombrePaciente, citas.fechaHora, citas.motivoConsulta, citas.estado 
         FROM citas
@@ -260,26 +330,26 @@ const obtenerSobreturnos = (idMedico, fechaSeleccionada, regulares, usuario, res
             return res.status(500).send('Error al obtener los sobreturnos');
         }
 
-        // Formatear la fecha y hora antes de enviarla a la vista
         formatearCitas(regulares);
         formatearCitas(sobreturnos);
 
-        // Generar los horarios libres si el usuario es secretaria o paciente
         let horariosLibres = [];
         if (usuario.role === 'secretaria' || usuario.role === 'paciente') {
             horariosLibres = generarHorariosLibres(fechaSeleccionada, regulares.concat(sobreturnos));
         }
 
-        // Enviar los turnos regulares, sobreturnos y horarios libres a la vista
         res.render('agenda_medico', {
             regulares,
             sobreturnos,
             horariosLibres,
             fechaHoy: fechaSeleccionada,
-            medicoId: idMedico
+            medicoId: idMedico,
+            user: usuario,
+            agendaDelDia: false
         });
     });
 };
+
 
 const formatearCitas = (citas) => {
     citas.forEach(cita => {

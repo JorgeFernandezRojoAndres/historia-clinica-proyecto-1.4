@@ -1,16 +1,12 @@
 // Verifica si el usuario está autenticado 
+// Verifica si el usuario está autenticado 
 exports.isAuthenticated = (req, res, next) => {
-    console.log('Verificando si está autenticado:', req.session.user);
-    
-    // Verificar si no hay sesión activa o si el usuario no tiene el atributo 'user'
-    if (!req.session.user || !req.session.user.id) {
-        console.log('Sesión no encontrada o usuario no autenticado, redirigiendo al login');
+    if (!req.session || !req.session.user || !req.session.user.id) {
         return res.redirect('/login');
     }
-    
-    console.log('Autenticación verificada, procediendo...');
     next();
 };
+
 
 // Middleware para permitir acceso a administradores
 exports.isAdmin = (req, res, next) => {

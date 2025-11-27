@@ -1,0 +1,12 @@
+doctype html
+html
+  head
+    title Seleccionar turno
+    link(rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css")
+  body(data-medico-id=medicoId)
+
+    label(for="seleccionar-dia") Seleccionar fecha:
+    input(type="date" id="seleccionar-dia")
+
+    script(src="https://cdn.jsdelivr.net/npm/sweetalert2@11")
+    script(src="/js/agendaPaciente.js")

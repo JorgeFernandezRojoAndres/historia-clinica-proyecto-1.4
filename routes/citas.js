@@ -18,19 +18,24 @@ router.get('/edit/:id', isAuthenticated, citasController.showEditForm);
 // Actualizar una cita
 router.post('/update/:id', isAuthenticated, citasController.update);
 
-// Eliminar una cita
-router.get('/delete/:id', isAuthenticated, citasController.delete);
+// 🔥 VALIDAR FECHA DISPONIBLE
+router.get('/validar-fecha', isAuthenticated, citasController.validarFechaDisponible);
 
-// Ruta para filtrar citas por estado (solo para secretaria)
+// Filtrar citas (solo secretaria)
 router.get('/filter', isAuthenticated, isSecretaria, citasController.filterByState);
-// Eliminar un turno completado
+
+// Eliminar turno completado
 router.get('/delete-completed/:id', isAuthenticated, isPacienteOrSecretaria, citasController.deleteCompleted);
 
-// Eliminar una cita normal
+// Eliminar cita normal
 router.get('/delete/:id', isAuthenticated, isPacienteOrSecretaria, citasController.delete);
-// Ruta para contar citas en proceso
+
+// Contar citas en proceso
 router.get('/count-en-proceso', isAuthenticated, isSecretaria, citasController.countEnProceso);
-// Ruta para el autocompletado de pacientes en el formulario de creación de citas
+
+// Autocompletar pacientes
 router.get('/buscar-paciente', isAuthenticated, isPacienteOrSecretaria, citasController.autocompletePacientesParaCita);
+// Horarios libres del médico por fecha
+router.get('/obtener-horarios-libres/:idMedico', citasController.obtenerHorariosLibres);
 
 module.exports = router;

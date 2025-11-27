@@ -1,59 +1,88 @@
 const moment = require('moment');
-const db = require('../config/database'); // Asegúrate de que el path sea correcto
+const db = require('../config/database');
 
 function generarHorariosLibres(fecha, citas, opciones = {}) {
     const horariosLibres = [];
-    
-    // Horarios de trabajo por defecto
+
+    const fechaBase = moment(fecha, 'YYYY-MM-DD', true);
+    if (!fechaBase.isValid()) {
+        console.error(`La fecha proporcionada no es válida: ${fecha}`);
+        return horariosLibres;
+    }
+
     const inicioMañana = opciones.inicioMañana || 8;
     const finMañana = opciones.finMañana || 12;
     const inicioTarde = opciones.inicioTarde || 14;
     const finTarde = opciones.finTarde || 18;
-    const intervalo = opciones.intervalo || 40; // Intervalo de 40 minutos por cita
+    const intervalo = opciones.intervalo || 40;
 
-    // Validar y convertir la fecha al formato estándar
-    const fechaBase = moment(fecha, 'YYYY-MM-DD');
-    if (!fechaBase.isValid()) {
-        console.error(`La fecha proporcionada no es válida: ${fecha}`);
-        return horariosLibres; // Retornar un array vacío si la fecha es inválida
+    const diasLaborales = opciones.diasLaborales || [1, 2, 3, 4, 5];
+    const feriados = opciones.feriados || [];
+
+    const diaSemana = fechaBase.day();
+
+    if (!diasLaborales.includes(diaSemana)) {
+        console.log(`Día ${fecha} bloqueado por no laboral`);
+        return horariosLibres;
     }
 
-    // Crear un array con todos los horarios de la mañana
-    for (let hora = inicioMañana; hora < finMañana; hora++) {
-        for (let minuto = 0; minuto < 60; minuto += intervalo) {
-            const horaFormateada = `${hora.toString().padStart(2, '0')}:${minuto.toString().padStart(2, '0')}`;
-            horariosLibres.push({
-                fecha: fechaBase.format('YYYY-MM-DD'), // Fecha en formato estándar
-                hora: horaFormateada,
-            });
-        }
+    if (feriados.includes(fechaBase.format('YYYY-MM-DD'))) {
+        console.log(`Fecha ${fecha} bloqueada por feriado`);
+        return horariosLibres;
     }
 
-    // Crear un array con todos los horarios de la tarde
-    for (let hora = inicioTarde; hora < finTarde; hora++) {
-        for (let minuto = 0; minuto < 60; minuto += intervalo) {
-            const horaFormateada = `${hora.toString().padStart(2, '0')}:${minuto.toString().padStart(2, '0')}`;
-            horariosLibres.push({
-                fecha: fechaBase.format('YYYY-MM-DD'), // Fecha en formato estándar
-                hora: horaFormateada,
-            });
-        }
-    }
+    const crearBloque = (horaInicio, horaFin) => {
+        for (let hora = horaInicio; hora < horaFin; hora++) {
+            for (let minuto = 0; minuto < 60; minuto += intervalo) {
 
-    // Filtrar los horarios que ya están ocupados por citas
-    citas.forEach(cita => {
-        const horaCita = moment(cita.fechaHora, 'YYYY-MM-DD HH:mm').format('HH:mm'); // Asegurarse de usar un formato válido
-        const index = horariosLibres.findIndex(horario => horario.hora === horaCita);
-        if (index > -1) {
-            horariosLibres.splice(index, 1); // Eliminar horario ocupado
-        }
-    });
+                const horaFormateada = `${hora.toString().padStart(2, '0')}:${minuto.toString().padStart(2, '0')}`;
 
-    console.log("Horarios generados:", horariosLibres);
-    return horariosLibres;
+                const startISO = `${fechaBase.format('YYYY-MM-DD')}T${horaFormateada}:00Z`;
+
+                horariosLibres.push({
+                    id: `free-${fechaBase.format('YYYYMMDD')}-${hora}-${minuto}`,
+                    fecha: fechaBase.format('YYYY-MM-DD'),
+                    hora: horaFormateada,
+                    startISO,
+                    estado: "Disponible"
+                });
+
+            }
+        }
+    };
+
+    crearBloque(inicioMañana, finMañana);
+    crearBloque(inicioTarde, finTarde);
+
+    const ocupados = new Set(
+        citas.map(c => {
+            let f;
+
+            if (c.fechaHora instanceof Date) {
+                f = c.fechaHora;
+            }
+            else if (typeof c.fechaHora === 'string') {
+                const normalizado = c.fechaHora.replace(
+                    /^(\d{2})\/(\d{2})\/(\d{4})/,
+                    '$3-$2-$1'
+                );
+                f = new Date(normalizado);
+            }
+            else {
+                f = new Date(c.fechaHora);
+            }
+
+            return f.toISOString().slice(11, 16);
+        })
+    );
+
+    const filtrados = horariosLibres.filter(
+        h => !ocupados.has(h.hora)
+    );
+
+    return filtrados;
 }
 
-// Nueva función para agregar horarios libres a la base de datos
 function agregarHorarioLibre(idMedico, fechaHora, callback) {
     const sql = 'INSERT INTO horarios_libres (idMedico, fechaHora) VALUES (?, ?)';
     db.query(sql, [idMedico, fechaHora], (error, results) => {
@@ -65,7 +94,6 @@ function agregarHorarioLibre(idMedico, fechaHora, callback) {
     });
 }
 
-// Función para eliminar un horario libre
 function eliminarHorarioLibre(idMedico, fechaHora, callback) {
     const sql = 'DELETE FROM horarios_libres WHERE idMedico = ? AND fechaHora = ?';
     db.query(sql, [idMedico, fechaHora], (error, results) => {

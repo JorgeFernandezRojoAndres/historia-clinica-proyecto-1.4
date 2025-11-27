@@ -1,4 +1,4 @@
-extends layout
+extends layout 
 
 block content
   h2 Nueva Cita
@@ -9,6 +9,9 @@ block content
   script#medicosData(type="application/json") !{JSON.stringify(medicos)}
 
   form(action="/citas/new" method="POST")
+    input(type="hidden" name="estado" value=estado)
+    input(type="hidden" name="idPaciente" value=idPaciente)
+
     label(for="especialidadSelector") Especialidad:
     select(name="especialidadSelector" id="especialidadSelector")
       option(value="") -- Selecciona una especialidad --
@@ -35,11 +38,13 @@ block content
 
     ul#listaResultados(style="display: none;")
 
-    a#verAgendaButton.btn.btn-primary(href=`/medicos/${idMedico || ''}/agenda` target="_blank" disabled=idMedico ? false : true) Ver Agenda del Médico
+    label(for="diaTurno") Seleccionar fecha:
+    input(type="date" id="diaTurno" name="diaTurno" required)
+    br
 
-    label(for="fechaHora") Fecha y Hora:
-    input(type="datetime-local" name="fechaHora" id="fechaHora" required readonly=(user.role == 'paciente') value=fechaHora || '')
-
+    label(for="fechaHora") Hora:
+    select(name="fechaHora" id="fechaHora" required)
+      option(value="") -- Selecciona un horario --
     br
 
     label(for="motivoConsulta") Motivo de Consulta:
@@ -54,4 +59,6 @@ block content
 
     button(type="submit") Crear Cita
 
+  link(rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css")
+  script(src="https://cdn.jsdelivr.net/npm/flatpickr")
   script(src="/js/gestionCitasCombinado.js")
