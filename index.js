@@ -41,7 +41,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(compression());
 app.use(methodOverride('_method'));
-app.use('/citas', horariosRoutes);
 // Configuración de sesiones
 app.use(session({
     secret: 'tu_secreto', // Cambia esto a una clave más segura en producción
@@ -62,6 +61,9 @@ app.use((req, res, next) => {
 });
 
 // Definir rutas principales
+
+// Rutas de horarios (requieren sesión para validar)
+app.use('/horarios', horariosRoutes);
 
 app.get('/saludplus', (req, res) => {
     req.session.clinicaSeleccionada = true;
