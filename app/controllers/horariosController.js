@@ -103,8 +103,8 @@ exports.obtenerHorariosLibres = (req, res) => {
 
         console.log("📤 [SQL] resultados crudos:", results);
 
-        // Ahora devolvemos SOLO STRINGS como necesita tu Swal
-        const horarios = results.map(r => r.fechaHora);
+        // El frontend espera objetos con la llave "start"
+        const horarios = results.map(r => ({ start: r.fechaHora }));
 
         console.log("📤 [RESP] horarios:", horarios);
 
